@@ -13,6 +13,16 @@ type DB struct {
 	conn *sql.DB
 }
 
+type DBInsight struct {
+	ID                  int    `json:"id"`
+	Platform            string `json:"platform"`
+	SourceURL           string `json:"source_url"`
+	CorePainPoint       string `json:"core_pain_point"`
+	CurrentWorkaround   string `json:"current_workaround"`
+	CommercialPotential int    `json:"commercial_potential"`
+	SaaSFeasibility     string `json:"saas_feasibility"`
+}
+
 func NewDB(dsn string) (*DB, error) {
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
@@ -62,4 +72,28 @@ func (db *DB) SaveInsight(ctx context.Context, platform, url string, insight *an
 		insight.CommercialPotential, insight.SaaSFeasibility, insight.IsExplicitContent,
 	)
 	return err
+}
+
+func (db *DB) GetLatestInsights(ctx context.Context, limit int) ([]DBInsight, error) {
+	query := `
+		SELECT id, platform, source_url, core_pain_point, current_workaround, commercial_potential, saas_feasibility
+		FROM insights
+		ORDER BY created_at DESC
+		LIMIT $1
+	`
+	rows, err := db.conn.QueryContext(ctx, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var insights []DBInsight
+	for rows.Next() {
+		var i DBInsight
+		if err := rows.Scan(&i.ID, &i.Platform, &i.SourceURL, &i.CorePainPoint, &i.CurrentWorkaround, &i.CommercialPotential, &i.SaaSFeasibility); err != nil {
+			return nil, err
+		}
+		insights = append(insights, i)
+	}
+	return insights, nil
 }

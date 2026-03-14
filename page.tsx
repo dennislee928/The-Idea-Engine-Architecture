@@ -18,30 +18,19 @@ export default function Dashboard() {
   const [insights, setInsights] = useState<Insight[]>([]);
 
   useEffect(() => {
-    // TODO: Connect this to a real Go SSE (Server-Sent Events) endpoint or WebSocket
-    // fetch('/api/insights').then(res => res.json()).then(setInsights)
-
-    // Mock data for initial UI layout
-    setInsights([
-      {
-        id: 1,
-        platform: "Dcard",
-        core_pain_point: "Finding temporary housing with pet-friendly rules is impossible and takes 20+ hours of manual calling.",
-        current_workaround: "Using 5 different Facebook groups and maintaining a massive Excel sheet.",
-        commercial_potential: 8,
-        saas_feasibility: "High. A targeted aggregator with verified pet policies.",
-        source_url: "https://dcard.tw/f/example",
-      },
-      {
-        id: 2,
-        platform: "Reddit",
-        core_pain_point: "Freelancers struggle to calculate estimated quarterly taxes across different state lines.",
-        current_workaround: "Paying a CPA $500/year or using complex IRS worksheets manually.",
-        commercial_potential: 9,
-        saas_feasibility: "High. Plaid integration + tax formula calculator.",
-        source_url: "https://reddit.com/r/example",
+    const fetchInsights = async () => {
+      try {
+        const res = await fetch('http://localhost:8080/api/insights');
+        const data = await res.json();
+        setInsights(data || []);
+      } catch (error) {
+        console.error("Failed to fetch insights:", error);
       }
-    ]);
+    };
+    
+    fetchInsights();
+    const interval = setInterval(fetchInsights, 5000); // Poll every 5 seconds for new ideas
+    return () => clearInterval(interval);
   }, []);
 
   return (
