@@ -2,7 +2,7 @@
 
 An automated platform that scrapes, analyzes, and streams user pain points from online communities (Reddit, Dcard, App Store, TikTok) to discover highly validated SaaS opportunities.
 
-## System Architecture
+## System Architecture.
 
 ### 1. Ingestion Layer (Go + Redis)
 *   **Scrapers:** Lightweight Go workers that fetch data via APIs (Reddit, Dcard) and RSS (App Store).
