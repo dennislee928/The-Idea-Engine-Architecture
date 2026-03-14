@@ -2,108 +2,108 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 )
 
 func main() {
+	cfg := LoadConfig()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// 1. Initialize Infrastructure Components
-	redisURL := "redis://localhost:6379/0"
-	dedup, err := NewDeduplicator(redisURL, 7*24*time.Hour) // 7 days TTL
+	dedup, err := NewDeduplicator(cfg.RedisURL, cfg.DedupTTL)
 	if err != nil {
 		log.Fatalf("Failed to connect to Redis: %v", err)
 	}
 
-	kafkaQ := NewKafkaQueue("localhost:9092", "raw-posts")
+	queue := NewKafkaQueue(cfg.KafkaBroker, cfg.KafkaTopic, cfg.KafkaGroupID)
 
-	dbURL := "postgres://idea_admin:idea_password@localhost:5432/idea_engine?sslmode=disable"
-	db, err := NewDB(dbURL)
+	db, err := NewDB(cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("Failed to connect to Postgres: %v", err)
 	}
+	defer db.Close()
 
-	gemini := NewGeminiAnalyzer()
-	dcardScraper := NewDcardScraper("softwareengineer")
+	analyzer := NewAnalyzer(cfg)
+	broadcaster := NewBroadcaster()
+	engine := NewEngine(
+		cfg,
+		dedup,
+		queue,
+		db,
+		analyzer,
+		buildSources(cfg),
+		broadcaster,
+	)
 
-	log.Println("Idea Engine Backend Started successfully.")
+	router := NewRouter(db, broadcaster, cfg.InternalAPIToken, engine.RunIngestionOnce)
+	server := &http.Server{
+		Addr:    ":" + cfg.ServerPort,
+		Handler: router,
+	}
 
-	// 2. Start Ingestion Worker (Scraper -> Redis -> Kafka)
+	var wg sync.WaitGroup
+	engine.StartIngestionLoop(ctx, &wg)
+	engine.StartAnalysisWorkers(ctx, &wg)
+
 	go func() {
-		ticker := time.NewTicker(5 * time.Minute)
-		defer ticker.Stop()
-
-		for {
-			log.Println("Starting Dcard scraping cycle...")
-			posts, err := dcardScraper.Scrape(ctx, 30)
-			if err != nil {
-				log.Printf("Scrape error: %v", err)
-				continue
-			}
-
-			for _, post := range posts {
-				isDup, err := dedup.IsDuplicate(ctx, post.Platform, post.ID)
-				if err != nil {
-					log.Printf("Redis error: %v", err)
-					continue
-				}
-				if isDup {
-					continue // Skip already processed posts
-				}
-
-				// Push new post to Kafka
-				msg := Message{
-					PostID:   post.ID,
-					Platform: post.Platform,
-					Content:  post.Content,
-					URL:      post.URL,
-				}
-				if err := kafkaQ.Push(ctx, msg); err != nil {
-					log.Printf("Kafka push error: %v", err)
-				} else {
-					log.Printf("Pushed new post %s to Kafka", post.ID)
-				}
-			}
-
-			select {
-			case <-ticker.C:
-			case <-ctx.Done():
-				return
-			}
+		log.Printf("Idea Engine API listening on :%s", cfg.ServerPort)
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("HTTP server failed: %v", err)
 		}
 	}()
 
-	// 3. Start Intelligence Worker (Kafka -> LLM -> Postgres)
-	go func() {
-		for {
-			msg, err := kafkaQ.Consume(ctx)
-			if err != nil {
-				log.Printf("Kafka consume error: %v", err)
-				time.Sleep(2 * time.Second)
-				continue
-			}
+	log.Printf("Idea Engine started with provider=%s and sources=%d", analyzer.Name(), len(engine.sources))
 
-			log.Printf("Analyzing post %s from %s...", msg.PostID, msg.Platform)
-			insight, err := gemini.AnalyzeText(ctx, msg.Content)
-			if err != nil || insight == nil {
-				log.Printf("LLM analysis error: %v", err)
-				continue
-			}
-
-			if err := db.SaveInsight(ctx, msg.Platform, msg.URL, insight); err != nil {
-				log.Printf("Postgres save error: %v", err)
-			}
-		}
-	}()
-
-	// 4. Graceful Shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
+
 	log.Println("Shutting down gracefully...")
+	cancel()
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Printf("HTTP shutdown error: %v", err)
+	}
+	if err := queue.Close(); err != nil {
+		log.Printf("Kafka close error: %v", err)
+	}
+
+	wg.Wait()
+}
+
+func buildSources(cfg Config) []Scraper {
+	sources := []Scraper{
+		NewDcardScraper(cfg.DcardForums, cfg.DcardKeywords),
+	}
+
+	reddit := NewRedditScraper(
+		cfg.RedditClientID,
+		cfg.RedditClientSecret,
+		cfg.RedditUserAgent,
+		cfg.RedditSubreddits,
+		cfg.RedditKeywords,
+	)
+	if reddit.Enabled() {
+		sources = append(sources, reddit)
+	}
+
+	if len(cfg.AppStoreFeeds) > 0 {
+		sources = append(sources, NewAppStoreScraper(cfg.AppStoreFeeds, cfg.AppStoreKeywords))
+	}
+
+	if len(cfg.TranscriptFeedURLs) > 0 {
+		sources = append(sources, NewTranscriptFeedScraper(cfg.TranscriptFeedURLs, cfg.TranscriptKeywords))
+	}
+
+	return sources
 }

@@ -1,0 +1,1 @@
+self.__NEXT_FONT_MANIFEST='{"pages":{},"app":{"/Users/dennis_leedennis_lee/Documents/GitHub/The Idea Engine Architecture/app/layout":["static/media/98e207f02528a563-s.p.woff2","static/media/d3ebbfd689654d3a-s.p.woff2","static/media/36966cca54120369-s.p.woff2"]},"appUsingSizeAdjust":true,"pagesUsingSizeAdjust":false}';

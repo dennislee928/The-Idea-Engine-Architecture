@@ -7,52 +7,52 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-// Message defines the payload sent through Kafka
-type Message struct {
-	PostID   string `json:"post_id"`
-	Platform string `json:"platform"`
-	Content  string `json:"content"`
-	URL      string `json:"url"`
-}
-
 type KafkaQueue struct {
 	writer *kafka.Writer
 	reader *kafka.Reader
 }
 
-func NewKafkaQueue(brokerURL, topic string) *KafkaQueue {
+func NewKafkaQueue(brokerURL, topic, groupID string) *KafkaQueue {
 	return &KafkaQueue{
 		writer: &kafka.Writer{
-			Addr:     kafka.TCP(brokerURL),
-			Topic:    topic,
-			Balancer: &kafka.LeastBytes{},
+			Addr:                   kafka.TCP(brokerURL),
+			Topic:                  topic,
+			Balancer:               &kafka.LeastBytes{},
+			AllowAutoTopicCreation: true,
 		},
 		reader: kafka.NewReader(kafka.ReaderConfig{
 			Brokers:  []string{brokerURL},
-			GroupID:  "idea-engine-llm-group",
+			GroupID:  groupID,
 			Topic:    topic,
-			MaxBytes: 10e6, // 10MB
+			MaxBytes: 10e6,
 		}),
 	}
 }
 
-func (k *KafkaQueue) Push(ctx context.Context, msg Message) error {
+func (k *KafkaQueue) Push(ctx context.Context, msg QueueMessage) error {
 	bytes, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}
 	return k.writer.WriteMessages(ctx, kafka.Message{
-		Key:   []byte(msg.PostID),
+		Key:   []byte(msg.ID),
 		Value: bytes,
 	})
 }
 
-func (k *KafkaQueue) Consume(ctx context.Context) (Message, error) {
+func (k *KafkaQueue) Consume(ctx context.Context) (QueueMessage, error) {
 	m, err := k.reader.ReadMessage(ctx)
 	if err != nil {
-		return Message{}, err
+		return QueueMessage{}, err
 	}
-	var msg Message
+	var msg QueueMessage
 	err = json.Unmarshal(m.Value, &msg)
 	return msg, err
+}
+
+func (k *KafkaQueue) Close() error {
+	if err := k.writer.Close(); err != nil {
+		return err
+	}
+	return k.reader.Close()
 }
