@@ -48,6 +48,7 @@ The Idea Engine is a Go + Next.js system that monitors community complaints, pro
 - `postgres.go`: schema migration and query layer.
 - `server.go`: Gin routes, stats API, SSE, internal ingestion trigger.
 - `app/page.tsx`: live dashboard.
+- `DEPLOYMENT_GUIDE.md`: free-platform deployment strategy and Docker entrypoints.
 - `.github/workflows/ingestion-cron.yml`: scheduled remote ingestion trigger.
 
 ## Quick start
