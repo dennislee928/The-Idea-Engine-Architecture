@@ -70,12 +70,30 @@ func (g *GeminiAnalyzer) AnalyzeText(ctx context.Context, text string) (*Insight
 	defer resp.Body.Close()
 
 	// Parsing the specific Gemini response structure
-	// In a real implementation, you would define the exact Gemini response structs,
-	// but here we are extracting the text block which contains our structured JSON.
-	// *Implementation note for developer*: Unmarshal the nested Gemini response,
-	// extract `candidates[0].content.parts[0].text`, and then unmarshal THAT string into the `Insight` struct.
+	var geminiResp struct {
+		Candidates []struct {
+			Content struct {
+				Parts []struct {
+					Text string `json:"text"`
+				} `json:"parts"`
+			} `json:"content"`
+		} `json:"candidates"`
+	}
 
-	// Mocking the successful extraction for now to show the flow
+	if err := json.NewDecoder(resp.Body).Decode(&geminiResp); err != nil {
+		return nil, fmt.Errorf("failed to decode gemini response: %w", err)
+	}
+
+	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
+		return nil, fmt.Errorf("empty response from gemini")
+	}
+
+	rawJSONText := geminiResp.Candidates[0].Content.Parts[0].Text
+
 	var insight Insight
+	if err := json.Unmarshal([]byte(rawJSONText), &insight); err != nil {
+		return nil, fmt.Errorf("failed to parse insight json: %w\nRaw Text: %s", err, rawJSONText)
+	}
+
 	return &insight, nil
 }
