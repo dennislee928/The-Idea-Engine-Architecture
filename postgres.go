@@ -1,11 +1,10 @@
-package storage
+package main
 
 import (
 	"context"
 	"database/sql"
 	"log"
 
-	"github.com/dennis_lee/idea-engine/backend/internal/analyzer" // Adjust import path as needed
 	_ "github.com/lib/pq"
 )
 
@@ -61,7 +60,7 @@ func (db *DB) migrate() {
 	}
 }
 
-func (db *DB) SaveInsight(ctx context.Context, platform, url string, insight *analyzer.Insight) error {
+func (db *DB) SaveInsight(ctx context.Context, platform, url string, insight *Insight) error {
 	query := `
 		INSERT INTO insights (platform, source_url, core_pain_point, current_workaround, commercial_potential, saas_feasibility, is_explicit_content)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)

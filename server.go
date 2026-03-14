@@ -1,13 +1,12 @@
-package api
+package main
 
 import (
 	"net/http"
 
-	"github.com/dennis_lee/idea-engine/backend/internal/storage"
 	"github.com/gin-gonic/gin"
 )
 
-func StartServer(db *storage.DB, port string) {
+func StartServer(db *DB, port string) {
 	r := gin.Default()
 
 	// Simple CORS middleware for local frontend development

@@ -1,4 +1,4 @@
-package analyzer
+package main
 
 import (
 	"bytes"

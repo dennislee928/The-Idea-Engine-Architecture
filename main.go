@@ -7,12 +7,6 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-
-	"github.com/dennis_lee/idea-engine/backend/internal/analyzer"
-	"github.com/dennis_lee/idea-engine/backend/internal/cache"
-	"github.com/dennis_lee/idea-engine/backend/internal/queue"
-	"github.com/dennis_lee/idea-engine/backend/internal/scraper"
-	"github.com/dennis_lee/idea-engine/backend/internal/storage"
 )
 
 func main() {
@@ -21,21 +15,21 @@ func main() {
 
 	// 1. Initialize Infrastructure Components
 	redisURL := "redis://localhost:6379/0"
-	dedup, err := cache.NewDeduplicator(redisURL, 7*24*time.Hour) // 7 days TTL
+	dedup, err := NewDeduplicator(redisURL, 7*24*time.Hour) // 7 days TTL
 	if err != nil {
 		log.Fatalf("Failed to connect to Redis: %v", err)
 	}
 
-	kafkaQ := queue.NewKafkaQueue("localhost:9092", "raw-posts")
+	kafkaQ := NewKafkaQueue("localhost:9092", "raw-posts")
 
 	dbURL := "postgres://idea_admin:idea_password@localhost:5432/idea_engine?sslmode=disable"
-	db, err := storage.NewDB(dbURL)
+	db, err := NewDB(dbURL)
 	if err != nil {
 		log.Fatalf("Failed to connect to Postgres: %v", err)
 	}
 
-	gemini := analyzer.NewGeminiAnalyzer()
-	dcardScraper := scraper.NewDcardScraper("softwareengineer")
+	gemini := NewGeminiAnalyzer()
+	dcardScraper := NewDcardScraper("softwareengineer")
 
 	log.Println("Idea Engine Backend Started successfully.")
 
@@ -63,7 +57,7 @@ func main() {
 				}
 
 				// Push new post to Kafka
-				msg := queue.Message{
+				msg := Message{
 					PostID:   post.ID,
 					Platform: post.Platform,
 					Content:  post.Content,
