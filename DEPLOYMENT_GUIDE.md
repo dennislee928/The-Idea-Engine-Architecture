@@ -10,6 +10,8 @@ This project can be deployed as two separate services:
 ### Backend
 
 Use [Dockerfile.backend](/Users/dennis_leedennis_lee/Documents/GitHub/The%20Idea%20Engine%20Architecture/Dockerfile.backend).
+Automate with [scripts/deploy-koyeb-backend.sh](/Users/dennis_leedennis_lee/Documents/GitHub/The%20Idea%20Engine%20Architecture/scripts/deploy-koyeb-backend.sh).
+Template env file: [.env.koyeb.backend.example](/Users/dennis_leedennis_lee/Documents/GitHub/The%20Idea%20Engine%20Architecture/.env.koyeb.backend.example).
 
 Best for:
 - Koyeb
@@ -33,6 +35,8 @@ For a lightweight demo deployment:
 ### Frontend
 
 Use [Dockerfile.frontend](/Users/dennis_leedennis_lee/Documents/GitHub/The%20Idea%20Engine%20Architecture/Dockerfile.frontend).
+Automate with [scripts/deploy-hf-space-frontend.sh](/Users/dennis_leedennis_lee/Documents/GitHub/The%20Idea%20Engine%20Architecture/scripts/deploy-hf-space-frontend.sh).
+Template env file: [.env.hf.space.example](/Users/dennis_leedennis_lee/Documents/GitHub/The%20Idea%20Engine%20Architecture/.env.hf.space.example).
 
 Required environment variable:
 - `NEXT_PUBLIC_API_BASE_URL`

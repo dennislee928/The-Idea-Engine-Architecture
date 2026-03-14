@@ -1,0 +1,46 @@
+# Repo-side Koyeb service manifest for the Go backend.
+# This is not an official Koyeb-native repository manifest format.
+# It mirrors the values used by scripts/deploy-koyeb-backend.sh.
+
+apiVersion: idea-engine/v1alpha1
+kind: KoyebServiceManifest
+
+metadata:
+  app: idea-engine
+  service: idea-engine-api
+  type: web
+
+spec:
+  source:
+    git: github.com/your-user/your-repo
+    branch: main
+    builder: docker
+    dockerfile: Dockerfile.backend
+
+  runtime:
+    instance_type: nano
+    regions:
+      - was
+    scaling:
+      min: 1
+      max: 1
+    ports:
+      - "8080:http"
+    routes:
+      - "/:8080"
+    healthchecks:
+      - "8080:http:/healthz"
+    healthcheck_grace_period:
+      - "8080=30"
+    sleep:
+      light_sleep_delay: "0"
+      deep_sleep_delay: "0"
+
+  env:
+    mode: file
+    file: .env.koyeb.backend
+    example_file: .env.koyeb.backend.example
+
+  notes:
+    - Use mock LLM and embedding providers on the free tier unless you have tested memory headroom.
+    - Managed databases, Redis, and Kafka should be provisioned separately.

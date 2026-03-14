@@ -1,0 +1,22 @@
+# Repo-side deployment manifest for The Idea Engine on Koyeb.
+# Note:
+# - Koyeb's current official docs focus on CLI and control-panel deployment.
+# - This file is a source-of-truth template for our repo and deploy scripts.
+
+apiVersion: idea-engine/v1alpha1
+kind: KoyebAppManifest
+
+metadata:
+  app: idea-engine
+  owner: your-koyeb-organization
+  environment: demo
+
+spec:
+  deployment:
+    method: git
+    repository: github.com/your-user/your-repo
+    branch: main
+    builder: docker
+
+  services:
+    - manifest: service.backend.manifest.yaml

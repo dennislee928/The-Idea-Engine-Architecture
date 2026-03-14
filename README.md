@@ -49,7 +49,12 @@ The Idea Engine is a Go + Next.js system that monitors community complaints, pro
 - `server.go`: Gin routes, stats API, SSE, internal ingestion trigger.
 - `app/page.tsx`: live dashboard.
 - `DEPLOYMENT_GUIDE.md`: free-platform deployment strategy and Docker entrypoints.
+- `docs/koyeb_runbook.md`: Koyeb backend deployment runbook.
+- `docs/huggingface_space_runbook.md`: Hugging Face Space frontend deployment runbook.
+- `koyeb/`: repo-side deployment manifest templates for Koyeb.
+- `scripts/`: deploy helpers for Koyeb and Hugging Face.
 - `.github/workflows/ingestion-cron.yml`: scheduled remote ingestion trigger.
+- `.github/workflows/deploy-hf-space-frontend.yml`: GitHub Actions deploy to Hugging Face Space.
 
 ## Quick start
 

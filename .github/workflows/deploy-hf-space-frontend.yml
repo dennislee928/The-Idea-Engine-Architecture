@@ -1,0 +1,59 @@
+name: Deploy Frontend To Hugging Face Space
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "app/**"
+      - "public/**"
+      - "package.json"
+      - "package-lock.json"
+      - "next-env.d.ts"
+      - "postcss.config.js"
+      - "tailwind.config.ts"
+      - "tsconfig.json"
+      - "Dockerfile.frontend"
+      - "scripts/deploy-hf-space-frontend.sh"
+      - ".github/workflows/deploy-hf-space-frontend.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-hf-space-frontend
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Validate required secrets
+        env:
+          HF_USERNAME: ${{ secrets.HF_USERNAME }}
+          HF_SPACE_NAME: ${{ secrets.HF_SPACE_NAME }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          NEXT_PUBLIC_API_BASE_URL: ${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
+        run: |
+          test -n "$HF_USERNAME"
+          test -n "$HF_SPACE_NAME"
+          test -n "$HF_TOKEN"
+          test -n "$NEXT_PUBLIC_API_BASE_URL"
+
+      - name: Deploy frontend to Hugging Face Space
+        env:
+          HF_USERNAME: ${{ secrets.HF_USERNAME }}
+          HF_SPACE_NAME: ${{ secrets.HF_SPACE_NAME }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          NEXT_PUBLIC_API_BASE_URL: ${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
+          HF_SPACE_TITLE: ${{ vars.HF_SPACE_TITLE || 'The Idea Engine' }}
+          HF_SPACE_COLOR_FROM: ${{ vars.HF_SPACE_COLOR_FROM || 'green' }}
+          HF_SPACE_COLOR_TO: ${{ vars.HF_SPACE_COLOR_TO || 'blue' }}
+        run: |
+          ./scripts/deploy-hf-space-frontend.sh

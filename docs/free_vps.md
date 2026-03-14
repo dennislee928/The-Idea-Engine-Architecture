@@ -69,6 +69,10 @@ This document describes recommended free VPS and PaaS options for the EnvShield 
 
 - Stricter anti-abuse measures; use an active GitHub account to register.  
 
+**Runbook**
+
+- See [docs/koyeb_runbook.md](/Users/dennis_leedennis_lee/Documents/GitHub/The%20Idea%20Engine%20Architecture/docs/koyeb_runbook.md) for the backend deployment flow.
+
 ---
 
 ### 3.3 Hugging Face Spaces
@@ -88,6 +92,10 @@ This document describes recommended free VPS and PaaS options for the EnvShield 
 **Limitations**
 
 - If there is **no traffic for 48 hours**, the Space goes to sleep; the next request may take about **1 minute** to wake it.  
+
+**Runbook**
+
+- See [docs/huggingface_space_runbook.md](/Users/dennis_leedennis_lee/Documents/GitHub/The%20Idea%20Engine%20Architecture/docs/huggingface_space_runbook.md) for the frontend demo deployment flow.
 
 ---
 
