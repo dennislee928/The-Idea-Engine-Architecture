@@ -1,1 +1,5 @@
 node_modules
+.next/app-build-manifest.json
+/.next
+/.next
+/.next

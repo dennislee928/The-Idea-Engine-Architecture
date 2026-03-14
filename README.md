@@ -10,6 +10,7 @@ The Idea Engine is a Go + Next.js system that monitors community complaints, pro
 - Kafka queue between ingestion and intelligence workers.
 - PostgreSQL storage for structured insights.
 - Recurring pain-point clustering with `cluster_key` / `cluster_label`.
+- pgvector-ready embeddings with semantic retrieval APIs.
 - Analyzer abstraction with `gemini`, `groq`, and `mock` providers.
 - SSE endpoint for a real-time pain-point stream.
 
@@ -65,7 +66,10 @@ cp .env.example .env
 
 Important variables:
 - `LLM_PROVIDER=mock|gemini|groq`
+- `EMBEDDING_PROVIDER=mock|gemini`
+- `EMBEDDING_DIMENSIONS=256`
 - `GEMINI_API_KEY` or `GROQ_API_KEY`
+- `GEMINI_EMBEDDING_MODEL=gemini-embedding-001`
 - `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET` for Reddit ingestion
 - `APP_STORE_FEEDS` for review feeds
 - `TRANSCRIPT_FEED_URLS` for Cloudflare Worker transcript feeds
@@ -91,8 +95,10 @@ Backend API: `http://localhost:8080`
 
 - `GET /healthz`
 - `GET /api/insights?limit=50`
+- `GET /api/insights/:id/similar?limit=8`
 - `GET /api/stats`
 - `GET /api/trends?limit=12&window_hours=168`
+- `GET /api/search?q=manual+spreadsheet&limit=8`
 - `GET /api/stream`
 - `POST /internal/ingest/run`
 
@@ -100,8 +106,8 @@ Backend API: `http://localhost:8080`
 
 ## Notes and next steps
 
-- `pgvector` extension is initialized, but embeddings and clustering are not implemented yet.
-- Current clustering is heuristic and keyword-aware; pgvector embeddings are still the logical next upgrade.
+- Current clustering is heuristic and keyword-aware; semantic retrieval now uses pgvector-backed embeddings, and the next upgrade would be higher-quality embedding models plus indexed ANN search.
+- `mock` embeddings use a deterministic hashing strategy, while Gemini embeddings use the official `embedContent` API.
 - Transcript collection is intentionally feed-based so you can plug in a Cloudflare Worker later.
 - The `mock` analyzer is useful for local development when you do not want to burn LLM quota.
 - Current frontend uses SSE instead of polling for the live stream, with periodic snapshot refresh for stats.

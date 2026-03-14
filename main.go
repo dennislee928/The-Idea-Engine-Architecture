@@ -32,6 +32,7 @@ func main() {
 	defer db.Close()
 
 	analyzer := NewAnalyzer(cfg)
+	embedder := NewEmbedder(cfg)
 	broadcaster := NewBroadcaster()
 	engine := NewEngine(
 		cfg,
@@ -39,11 +40,12 @@ func main() {
 		queue,
 		db,
 		analyzer,
+		embedder,
 		buildSources(cfg),
 		broadcaster,
 	)
 
-	router := NewRouter(db, broadcaster, cfg.InternalAPIToken, engine.RunIngestionOnce)
+	router := NewRouter(db, broadcaster, cfg.InternalAPIToken, engine.RunIngestionOnce, embedder)
 	server := &http.Server{
 		Addr:    ":" + cfg.ServerPort,
 		Handler: router,
@@ -60,7 +62,7 @@ func main() {
 		}
 	}()
 
-	log.Printf("Idea Engine started with provider=%s and sources=%d", analyzer.Name(), len(engine.sources))
+	log.Printf("Idea Engine started with provider=%s embedder=%s and sources=%d", analyzer.Name(), embedder.Name(), len(engine.sources))
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)

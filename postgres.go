@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/lib/pq"
+	"github.com/pgvector/pgvector-go"
 )
 
 type DB struct {
@@ -57,6 +58,8 @@ func (db *DB) migrate() error {
 			is_explicit_content BOOLEAN DEFAULT FALSE,
 			matched_keywords TEXT[] DEFAULT ARRAY[]::TEXT[],
 			analysis_model TEXT,
+			embedding_model TEXT,
+			embedding vector,
 			published_at TIMESTAMPTZ,
 			created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 		);`,
@@ -70,6 +73,8 @@ func (db *DB) migrate() error {
 		`ALTER TABLE insights ADD COLUMN IF NOT EXISTS raw_content TEXT;`,
 		`ALTER TABLE insights ADD COLUMN IF NOT EXISTS matched_keywords TEXT[] DEFAULT ARRAY[]::TEXT[];`,
 		`ALTER TABLE insights ADD COLUMN IF NOT EXISTS analysis_model TEXT;`,
+		`ALTER TABLE insights ADD COLUMN IF NOT EXISTS embedding_model TEXT;`,
+		`ALTER TABLE insights ADD COLUMN IF NOT EXISTS embedding vector;`,
 		`ALTER TABLE insights ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ;`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS insights_source_unique_idx ON insights (platform, source_post_id);`,
 		`CREATE INDEX IF NOT EXISTS insights_created_at_idx ON insights (created_at DESC);`,
@@ -86,8 +91,12 @@ func (db *DB) migrate() error {
 	return nil
 }
 
-func (db *DB) SaveInsight(ctx context.Context, post ScrapedPost, insight *Insight, model string) (DBInsight, error) {
+func (db *DB) SaveInsight(ctx context.Context, post ScrapedPost, insight *Insight, model, embeddingModel string, embedding []float32) (DBInsight, error) {
 	clusterKey, clusterLabel := BuildPainCluster(insight.CorePainPoint, post.MatchedKeywords)
+	var embeddingValue any
+	if len(embedding) > 0 {
+		embeddingValue = pgvector.NewVector(embedding)
+	}
 
 	query := `
 		INSERT INTO insights (
@@ -108,9 +117,11 @@ func (db *DB) SaveInsight(ctx context.Context, post ScrapedPost, insight *Insigh
 			is_explicit_content,
 			matched_keywords,
 			analysis_model,
+			embedding_model,
+			embedding,
 			published_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 		ON CONFLICT (platform, source_post_id)
 		DO UPDATE SET
 			channel = EXCLUDED.channel,
@@ -128,6 +139,8 @@ func (db *DB) SaveInsight(ctx context.Context, post ScrapedPost, insight *Insigh
 			is_explicit_content = EXCLUDED.is_explicit_content,
 			matched_keywords = EXCLUDED.matched_keywords,
 			analysis_model = EXCLUDED.analysis_model,
+			embedding_model = EXCLUDED.embedding_model,
+			embedding = EXCLUDED.embedding,
 			published_at = EXCLUDED.published_at
 		RETURNING
 			id,
@@ -148,6 +161,7 @@ func (db *DB) SaveInsight(ctx context.Context, post ScrapedPost, insight *Insigh
 			is_explicit_content,
 			matched_keywords,
 			analysis_model,
+			COALESCE(embedding_model, ''),
 			COALESCE(published_at, CURRENT_TIMESTAMP),
 			created_at
 	`
@@ -173,6 +187,8 @@ func (db *DB) SaveInsight(ctx context.Context, post ScrapedPost, insight *Insigh
 		insight.IsExplicitContent,
 		pq.Array(post.MatchedKeywords),
 		model,
+		embeddingModel,
+		embeddingValue,
 		post.PublishedAt.UTC(),
 	).Scan(
 		&record.ID,
@@ -193,6 +209,7 @@ func (db *DB) SaveInsight(ctx context.Context, post ScrapedPost, insight *Insigh
 		&record.IsExplicitContent,
 		pq.Array(&record.MatchedKeywords),
 		&record.AnalysisModel,
+		&record.EmbeddingModel,
 		&record.PublishedAt,
 		&record.CreatedAt,
 	)
@@ -222,6 +239,7 @@ func (db *DB) GetLatestInsights(ctx context.Context, limit int, includeExplicit 
 			COALESCE(is_explicit_content, FALSE),
 			COALESCE(matched_keywords, ARRAY[]::TEXT[]),
 			COALESCE(analysis_model, ''),
+			COALESCE(embedding_model, ''),
 			COALESCE(published_at, created_at),
 			created_at
 		FROM insights
@@ -259,6 +277,7 @@ func (db *DB) GetLatestInsights(ctx context.Context, limit int, includeExplicit 
 			&insight.IsExplicitContent,
 			pq.Array(&insight.MatchedKeywords),
 			&insight.AnalysisModel,
+			&insight.EmbeddingModel,
 			&insight.PublishedAt,
 			&insight.CreatedAt,
 		); err != nil {
@@ -298,6 +317,101 @@ func (db *DB) GetStats(ctx context.Context) (InsightStats, error) {
 	}
 
 	return stats, nil
+}
+
+func (db *DB) SemanticSearch(ctx context.Context, embedding []float32, limit int) ([]DBInsight, error) {
+	if len(embedding) == 0 {
+		return nil, nil
+	}
+
+	limit = clampLimit(limit)
+	queryVector := pgvector.NewVector(embedding)
+	rows, err := db.conn.QueryContext(ctx, `
+		SELECT
+			id,
+			platform,
+			channel,
+			content_kind,
+			COALESCE(cluster_key, ''),
+			COALESCE(cluster_label, ''),
+			COALESCE(source_post_id, ''),
+			COALESCE(title, ''),
+			source_url,
+			COALESCE(author, ''),
+			COALESCE(raw_content, ''),
+			COALESCE(core_pain_point, ''),
+			COALESCE(current_workaround, ''),
+			COALESCE(commercial_potential, 0),
+			COALESCE(saas_feasibility, ''),
+			COALESCE(is_explicit_content, FALSE),
+			COALESCE(matched_keywords, ARRAY[]::TEXT[]),
+			COALESCE(analysis_model, ''),
+			COALESCE(embedding_model, ''),
+			COALESCE(published_at, created_at),
+			created_at,
+			GREATEST(0, 1 - (embedding <=> $1)) AS similarity
+		FROM insights
+		WHERE COALESCE(is_explicit_content, FALSE) = FALSE
+		  AND embedding IS NOT NULL
+		ORDER BY embedding <=> $1
+		LIMIT $2
+	`, queryVector, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanInsights(rows, true)
+}
+
+func (db *DB) GetSimilarInsights(ctx context.Context, insightID, limit int) ([]DBInsight, error) {
+	limit = clampLimit(limit)
+
+	rows, err := db.conn.QueryContext(ctx, `
+		WITH target AS (
+			SELECT embedding
+			FROM insights
+			WHERE id = $1
+			  AND embedding IS NOT NULL
+			LIMIT 1
+		)
+		SELECT
+			i.id,
+			i.platform,
+			i.channel,
+			i.content_kind,
+			COALESCE(i.cluster_key, ''),
+			COALESCE(i.cluster_label, ''),
+			COALESCE(i.source_post_id, ''),
+			COALESCE(i.title, ''),
+			i.source_url,
+			COALESCE(i.author, ''),
+			COALESCE(i.raw_content, ''),
+			COALESCE(i.core_pain_point, ''),
+			COALESCE(i.current_workaround, ''),
+			COALESCE(i.commercial_potential, 0),
+			COALESCE(i.saas_feasibility, ''),
+			COALESCE(i.is_explicit_content, FALSE),
+			COALESCE(i.matched_keywords, ARRAY[]::TEXT[]),
+			COALESCE(i.analysis_model, ''),
+			COALESCE(i.embedding_model, ''),
+			COALESCE(i.published_at, i.created_at),
+			i.created_at,
+			GREATEST(0, 1 - (i.embedding <=> target.embedding)) AS similarity
+		FROM insights i
+		CROSS JOIN target
+		WHERE i.id <> $1
+		  AND COALESCE(i.is_explicit_content, FALSE) = FALSE
+		  AND i.embedding IS NOT NULL
+		ORDER BY i.embedding <=> target.embedding
+		LIMIT $2
+	`, insightID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanInsights(rows, true)
 }
 
 func (db *DB) GetTrendClusters(ctx context.Context, windowHours, limit int) ([]TrendCluster, error) {
@@ -362,6 +476,45 @@ func (db *DB) GetTrendClusters(ctx context.Context, windowHours, limit int) ([]T
 
 func (db *DB) Close() error {
 	return db.conn.Close()
+}
+
+func scanInsights(rows *sql.Rows, includeSimilarity bool) ([]DBInsight, error) {
+	var insights []DBInsight
+	for rows.Next() {
+		var insight DBInsight
+		destinations := []any{
+			&insight.ID,
+			&insight.Platform,
+			&insight.Channel,
+			&insight.ContentKind,
+			&insight.ClusterKey,
+			&insight.ClusterLabel,
+			&insight.SourcePostID,
+			&insight.Title,
+			&insight.SourceURL,
+			&insight.Author,
+			&insight.RawContent,
+			&insight.CorePainPoint,
+			&insight.CurrentWorkaround,
+			&insight.CommercialPotential,
+			&insight.SaaSFeasibility,
+			&insight.IsExplicitContent,
+			pq.Array(&insight.MatchedKeywords),
+			&insight.AnalysisModel,
+			&insight.EmbeddingModel,
+			&insight.PublishedAt,
+			&insight.CreatedAt,
+		}
+		if includeSimilarity {
+			destinations = append(destinations, &insight.Similarity)
+		}
+		if err := rows.Scan(destinations...); err != nil {
+			return nil, err
+		}
+		insights = append(insights, insight)
+	}
+
+	return insights, rows.Err()
 }
 
 func clampLimit(limit int) int {

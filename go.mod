@@ -5,6 +5,7 @@ go 1.25.5
 require (
 	github.com/gin-gonic/gin v1.12.0
 	github.com/lib/pq v1.11.2
+	github.com/pgvector/pgvector-go v0.3.0
 	github.com/redis/go-redis/v9 v9.18.0
 	github.com/segmentio/kafka-go v0.4.50
 )

@@ -20,17 +20,19 @@ type Engine struct {
 	queue       *KafkaQueue
 	db          *DB
 	analyzer    Analyzer
+	embedder    Embedder
 	sources     []Scraper
 	broadcaster *Broadcaster
 }
 
-func NewEngine(cfg Config, dedup *Deduplicator, queue *KafkaQueue, db *DB, analyzer Analyzer, sources []Scraper, broadcaster *Broadcaster) *Engine {
+func NewEngine(cfg Config, dedup *Deduplicator, queue *KafkaQueue, db *DB, analyzer Analyzer, embedder Embedder, sources []Scraper, broadcaster *Broadcaster) *Engine {
 	return &Engine{
 		cfg:         cfg,
 		dedup:       dedup,
 		queue:       queue,
 		db:          db,
 		analyzer:    analyzer,
+		embedder:    embedder,
 		sources:     sources,
 		broadcaster: broadcaster,
 	}
@@ -131,7 +133,15 @@ func (e *Engine) StartAnalysisWorkers(ctx context.Context, wg *sync.WaitGroup) {
 					continue
 				}
 
-				record, err := e.db.SaveInsight(ctx, post, insight, e.analyzer.Name())
+				var embedding []float32
+				if e.embedder != nil {
+					embedding, err = e.embedder.EmbedDocument(ctx, post, insight)
+					if err != nil {
+						log.Printf("Worker %d embedding warning for %s: %v", id, msg.ID, err)
+					}
+				}
+
+				record, err := e.db.SaveInsight(ctx, post, insight, e.analyzer.Name(), e.embedder.Name(), embedding)
 				if err != nil {
 					log.Printf("Worker %d save error for %s: %v", id, msg.ID, err)
 					continue

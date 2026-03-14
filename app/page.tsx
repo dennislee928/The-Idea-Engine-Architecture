@@ -16,6 +16,8 @@ type Insight = {
 	platform: string;
 	channel: string;
 	content_kind: string;
+	cluster_key: string;
+	cluster_label: string;
 	source_post_id: string;
 	title: string;
 	source_url: string;
@@ -28,8 +30,10 @@ type Insight = {
 	is_explicit_content: boolean;
 	matched_keywords: string[];
 	analysis_model: string;
+	embedding_model: string;
 	published_at: string;
 	created_at: string;
+	similarity?: number;
 };
 
 type InsightStats = {
@@ -57,6 +61,10 @@ export default function DashboardPage() {
 	const [insights, setInsights] = useState<Insight[]>([]);
 	const [stats, setStats] = useState<InsightStats | null>(null);
 	const [trends, setTrends] = useState<TrendCluster[]>([]);
+	const [semanticQuery, setSemanticQuery] = useState("");
+	const [searchResults, setSearchResults] = useState<Insight[]>([]);
+	const [searchState, setSearchState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+	const [searchError, setSearchError] = useState<string | null>(null);
 	const [connectionState, setConnectionState] = useState<"connecting" | "live" | "retrying">("connecting");
 	const [lastEventAt, setLastEventAt] = useState<string | null>(null);
 
@@ -150,6 +158,37 @@ export default function DashboardPage() {
 	}, []);
 
 	const featured = insights.slice(0, 3);
+
+	const handleSemanticSearch = async (event: React.FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+
+		const query = semanticQuery.trim();
+		if (!query) {
+			setSearchState("idle");
+			setSearchResults([]);
+			setSearchError(null);
+			return;
+		}
+
+		setSearchState("loading");
+		setSearchError(null);
+
+		try {
+			const response = await fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(query)}&limit=6`, {
+				cache: "no-store",
+			});
+			if (!response.ok) {
+				throw new Error("semantic search failed");
+			}
+			const results = (await response.json()) as Insight[];
+			startTransition(() => setSearchResults(results));
+			setSearchState("ready");
+		} catch (error) {
+			console.error("Semantic search failed", error);
+			setSearchState("error");
+			setSearchError("Search is unavailable right now. Check your embedder config and API keys.");
+		}
+	};
 
 	return (
 		<main className="min-h-screen">
@@ -279,6 +318,55 @@ export default function DashboardPage() {
 								) : (
 									trends.map((trend) => <TrendCard key={trend.cluster_key} trend={trend} />)
 								)}
+							</div>
+						</div>
+
+						<div className="panel flex flex-col gap-4">
+							<div>
+								<p className="eyebrow">
+									<ScanSearch size={14} />
+									Semantic explorer
+								</p>
+								<h2 className="mt-2 text-2xl font-semibold text-white">Find adjacent pain points by meaning</h2>
+								<p className="mt-2 text-sm leading-6 text-slate-400">
+									輸入一句問題或 workflow，系統會用 embeddings 找出語意相近的痛點，而不是只做關鍵字比對。
+								</p>
+							</div>
+
+							<form className="grid gap-3" onSubmit={handleSemanticSearch}>
+								<textarea
+									className="min-h-28 rounded-3xl border border-white/10 bg-black/20 px-4 py-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-emerald-300/40"
+									onChange={(event) => setSemanticQuery(event.target.value)}
+									placeholder="例：餐廳老闆每週都要手動整理外送平台營收，還要再貼到 Excel 做報表"
+									value={semanticQuery}
+								/>
+								<div className="flex items-center justify-between gap-3">
+									<p className="font-mono text-xs uppercase tracking-[0.22em] text-slate-500">
+										{searchState === "ready" ? `${searchResults.length} matches` : "Ready for vector search"}
+									</p>
+									<button
+										className="rounded-full bg-emerald-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+										disabled={searchState === "loading"}
+										type="submit"
+									>
+										{searchState === "loading" ? "Searching..." : "Search"}
+									</button>
+								</div>
+							</form>
+
+							<div className="grid gap-3">
+								{searchError ? <SearchStateCard>{searchError}</SearchStateCard> : null}
+								{searchState === "idle" ? (
+									<SearchStateCard>
+										Start with a workflow description, pain point, or customer quote to surface similar signals.
+									</SearchStateCard>
+								) : null}
+								{searchState === "ready" && searchResults.length === 0 ? (
+									<SearchStateCard>No semantic matches yet. Add more source data or try a broader phrasing.</SearchStateCard>
+								) : null}
+								{searchResults.map((result) => (
+									<SearchResultCard key={`search-${result.id}`} result={result} />
+								))}
 							</div>
 						</div>
 					</div>
@@ -439,6 +527,43 @@ function TrendCard({ trend }: { trend: TrendCluster }) {
 	);
 }
 
+function SearchResultCard({ result }: { result: Insight }) {
+	return (
+		<article className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+			<div className="flex flex-wrap items-center justify-between gap-3">
+				<div className="flex flex-wrap items-center gap-2">
+					<SourceBadge value={result.platform} />
+					{result.cluster_label ? <SourceBadge subtle value={result.cluster_label} /> : null}
+				</div>
+				<div className="rounded-full bg-sky-400/15 px-3 py-1 font-mono text-[11px] text-sky-300">
+					Similarity {formatSimilarity(result.similarity)}
+				</div>
+			</div>
+
+			<h3 className="mt-4 text-base font-semibold text-white">{result.core_pain_point}</h3>
+			<p className="mt-2 text-sm leading-6 text-slate-400">{truncate(result.current_workaround, 140)}</p>
+			<div className="mt-4 flex items-center justify-between gap-3">
+				<p className="font-mono text-xs uppercase tracking-[0.2em] text-slate-500">
+					{result.embedding_model || "vector search"}
+				</p>
+				<a
+					className="inline-flex items-center gap-2 text-sm text-emerald-300 transition hover:text-emerald-200"
+					href={result.source_url}
+					rel="noreferrer"
+					target="_blank"
+				>
+					Open source
+					<ArrowUpRight size={16} />
+				</a>
+			</div>
+		</article>
+	);
+}
+
+function SearchStateCard({ children }: { children: React.ReactNode }) {
+	return <div className="rounded-3xl border border-dashed border-white/10 bg-black/20 p-5 text-sm leading-6 text-slate-400">{children}</div>;
+}
+
 function PipelineStep({
 	step,
 	title,
@@ -523,4 +648,11 @@ function truncate(value: string, maxLength: number) {
 		return value;
 	}
 	return `${value.slice(0, maxLength).trim()}...`;
+}
+
+function formatSimilarity(value?: number) {
+	if (typeof value !== "number") {
+		return "--";
+	}
+	return `${Math.round(value * 100)}%`;
 }

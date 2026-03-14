@@ -61,8 +61,10 @@ type DBInsight struct {
 	IsExplicitContent   bool      `json:"is_explicit_content"`
 	MatchedKeywords     []string  `json:"matched_keywords"`
 	AnalysisModel       string    `json:"analysis_model"`
+	EmbeddingModel      string    `json:"embedding_model"`
 	PublishedAt         time.Time `json:"published_at"`
 	CreatedAt           time.Time `json:"created_at"`
+	Similarity          float64   `json:"similarity,omitempty"`
 }
 
 type InsightStats struct {

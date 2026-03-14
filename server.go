@@ -17,6 +17,7 @@ func NewRouter(
 	broadcaster *Broadcaster,
 	internalToken string,
 	triggerIngestion func(context.Context) (IngestionResult, error),
+	embedder Embedder,
 ) *gin.Engine {
 	r := gin.Default()
 
@@ -47,6 +48,22 @@ func NewRouter(
 		c.JSON(http.StatusOK, insights)
 	})
 
+	r.GET("/api/insights/:id/similar", func(c *gin.Context) {
+		insightID, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid insight id"})
+			return
+		}
+
+		limit, _ := strconv.Atoi(c.DefaultQuery("limit", "8"))
+		results, err := db.GetSimilarInsights(c.Request.Context(), insightID, limit)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, results)
+	})
+
 	r.GET("/api/stats", func(c *gin.Context) {
 		stats, err := db.GetStats(c.Request.Context())
 		if err != nil {
@@ -66,6 +83,28 @@ func NewRouter(
 			return
 		}
 		c.JSON(http.StatusOK, trends)
+	})
+
+	r.GET("/api/search", func(c *gin.Context) {
+		query := strings.TrimSpace(c.Query("q"))
+		if query == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "missing q parameter"})
+			return
+		}
+
+		limit, _ := strconv.Atoi(c.DefaultQuery("limit", "8"))
+		embedding, err := embedder.EmbedQuery(c.Request.Context(), query)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		results, err := db.SemanticSearch(c.Request.Context(), embedding, limit)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, results)
 	})
 
 	r.GET("/api/stream", func(c *gin.Context) {
