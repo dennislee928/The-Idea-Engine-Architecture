@@ -12,6 +12,7 @@ This project can be deployed as two separate services:
 Use [Dockerfile.backend](/Users/dennis_leedennis_lee/Documents/GitHub/The%20Idea%20Engine%20Architecture/Dockerfile.backend).
 Automate with [scripts/deploy-koyeb-backend.sh](/Users/dennis_leedennis_lee/Documents/GitHub/The%20Idea%20Engine%20Architecture/scripts/deploy-koyeb-backend.sh).
 Template env file: [.env.koyeb.backend.example](/Users/dennis_leedennis_lee/Documents/GitHub/The%20Idea%20Engine%20Architecture/.env.koyeb.backend.example).
+GitHub Actions workflow: [.github/workflows/deploy-koyeb-backend.yml](/Users/dennis_leedennis_lee/Documents/GitHub/The%20Idea%20Engine%20Architecture/.github/workflows/deploy-koyeb-backend.yml).
 
 Best for:
 - Koyeb
@@ -51,6 +52,7 @@ Recommended role:
 Why:
 - GitHub or Docker-based deploys fit the Go API well
 - free web service is enough for a lightweight demo
+- built-in git-driven redeploys on Koyeb work well with a GitHub-based repo
 
 Suggested setup:
 1. Deploy the backend with `Dockerfile.backend`

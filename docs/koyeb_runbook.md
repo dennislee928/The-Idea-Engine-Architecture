@@ -21,6 +21,7 @@ Official references:
 
 - Koyeb CLI install: `brew install koyeb/tap/koyeb` or `curl -fsSL https://raw.githubusercontent.com/koyeb/koyeb-cli/master/install.sh | sh`
 - Git-driven Docker deployment is supported by `koyeb services create ... --git-builder docker`
+- Koyeb supports git-driven deployment from GitHub and can automatically redeploy on new pushes when the repository is linked
 
 ## 1. Prepare the repository
 
@@ -214,3 +215,35 @@ Make sure:
 - the repo is accessible to Koyeb
 - `KOYEB_GIT` is in `github.com/owner/repo` form
 - `Dockerfile.backend` exists at the repo root
+
+## 9. GitHub Actions deployment
+
+This repo already includes a workflow template you can use as-is:
+
+- [.github/workflows/deploy-koyeb-backend.yml](/Users/dennis_leedennis_lee/Documents/GitHub/The%20Idea%20Engine%20Architecture/.github/workflows/deploy-koyeb-backend.yml)
+
+Required GitHub secrets:
+
+- `KOYEB_TOKEN`
+- `KOYEB_ENV_FILE_CONTENTS`
+
+Recommended GitHub repository variables:
+
+- `KOYEB_APP`
+- `KOYEB_SERVICE`
+- `KOYEB_REGION`
+- `KOYEB_INSTANCE_TYPE`
+- `KOYEB_PORT_SPEC`
+- `KOYEB_ROUTE_SPEC`
+- `KOYEB_HEALTHCHECK`
+- `KOYEB_HEALTHCHECK_GRACE`
+- `KOYEB_WAIT_TIMEOUT`
+
+The simplest setup is:
+
+1. Copy [.env.koyeb.backend.example](/Users/dennis_leedennis_lee/Documents/GitHub/The%20Idea%20Engine%20Architecture/.env.koyeb.backend.example) to `.env.koyeb.backend`.
+2. Fill it with your real deployment values.
+3. Paste the entire file contents into the GitHub secret `KOYEB_ENV_FILE_CONTENTS`.
+4. Add `KOYEB_TOKEN` as another GitHub secret.
+
+The workflow writes that secret to `.env.koyeb.backend` at runtime and then calls the same deploy script used locally.

@@ -1,0 +1,70 @@
+name: Deploy Backend To Koyeb
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "*.go"
+      - "go.mod"
+      - "go.sum"
+      - "Dockerfile.backend"
+      - ".env.koyeb.backend.example"
+      - "koyeb/**"
+      - "scripts/deploy-koyeb-backend.sh"
+      - ".github/workflows/deploy-koyeb-backend.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-koyeb-backend
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      KOYEB_APP: ${{ vars.KOYEB_APP || 'idea-engine' }}
+      KOYEB_SERVICE: ${{ vars.KOYEB_SERVICE || 'idea-engine-api' }}
+      KOYEB_REGION: ${{ vars.KOYEB_REGION || 'was' }}
+      KOYEB_INSTANCE_TYPE: ${{ vars.KOYEB_INSTANCE_TYPE || 'nano' }}
+      KOYEB_PORT_SPEC: ${{ vars.KOYEB_PORT_SPEC || '8080:http' }}
+      KOYEB_ROUTE_SPEC: ${{ vars.KOYEB_ROUTE_SPEC || '/:8080' }}
+      KOYEB_HEALTHCHECK: ${{ vars.KOYEB_HEALTHCHECK || '8080:http:/healthz' }}
+      KOYEB_HEALTHCHECK_GRACE: ${{ vars.KOYEB_HEALTHCHECK_GRACE || '8080=30' }}
+      KOYEB_WAIT_TIMEOUT: ${{ vars.KOYEB_WAIT_TIMEOUT || '10m' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate required secrets
+        env:
+          KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
+          KOYEB_ENV_FILE_CONTENTS: ${{ secrets.KOYEB_ENV_FILE_CONTENTS }}
+        run: |
+          test -n "$KOYEB_TOKEN"
+          test -n "$KOYEB_ENV_FILE_CONTENTS"
+
+      - name: Install Koyeb CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/koyeb/koyeb-cli/master/install.sh | sh
+          echo "$HOME/.koyeb/bin" >> "$GITHUB_PATH"
+
+      - name: Materialize backend environment file
+        env:
+          KOYEB_ENV_FILE_CONTENTS: ${{ secrets.KOYEB_ENV_FILE_CONTENTS }}
+        run: |
+          printf '%s\n' "$KOYEB_ENV_FILE_CONTENTS" > .env.koyeb.backend
+
+      - name: Deploy backend to Koyeb
+        env:
+          KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
+          KOYEB_GIT: github.com/${{ github.repository }}
+          KOYEB_GIT_BRANCH: ${{ github.ref_name }}
+          KOYEB_GIT_SHA: ${{ github.sha }}
+          KOYEB_ENV_FILE: .env.koyeb.backend
+        run: |
+          ./scripts/deploy-koyeb-backend.sh
