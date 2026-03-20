@@ -50,6 +50,7 @@ The Idea Engine is a Go + Next.js system that monitors community complaints, pro
 - `app/page.tsx`: live dashboard.
 - `DEPLOYMENT_GUIDE.md`: free-platform deployment strategy and Docker entrypoints.
 - `docs/koyeb_runbook.md`: Koyeb backend deployment runbook.
+- `docs/koyeb_token_and_env_setup.md`: how to get `KOYEB_TOKEN` and a usable backend env file.
 - `docs/huggingface_space_runbook.md`: Hugging Face Space frontend deployment runbook.
 - `koyeb/`: repo-side deployment manifest templates for Koyeb.
 - `scripts/`: deploy helpers for Koyeb and Hugging Face.

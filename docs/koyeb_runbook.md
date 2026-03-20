@@ -2,6 +2,10 @@
 
 This runbook deploys the **Go backend** of The Idea Engine to Koyeb using a Git-driven Docker build.
 
+Companion setup guide:
+
+- [docs/koyeb_token_and_env_setup.md](/Users/dennis_leedennis_lee/Documents/GitHub/The%20Idea%20Engine%20Architecture/docs/koyeb_token_and_env_setup.md)
+
 ## Scope
 
 - Service: backend API
